@@ -7,7 +7,7 @@ import argparse
 import json
 import os
 import random
-from time import time
+from uuid import uuid4
 
 import cv2
 import numpy as np
@@ -24,8 +24,8 @@ class ObservationSaver:
         self._image_directory = image_directory
 
     def save(self, observation, action, reward, done):
-        timestamp = int(time() * 1000)
-        frame_name = self._frame_format.format(time=timestamp)
+        uuid = uuid4().hex
+        frame_name = self._frame_format.format(uuid=uuid)
         frame_path = os.path.join(args.image_directory, frame_name)
         line = dict(image_id=frame_name, reward=reward, action=action.tolist(), done=done)
         self._outfile.write(json.dumps(line) + '\n')
@@ -126,7 +126,7 @@ if __name__ == '__main__':
 
     env = retro.make(args.game, args.state or retro.STATE_DEFAULT, scenario=args.scenario, record=args.record)
 
-    frame_format = '{game}_{state}_{{time}}.jpg'.format(game=args.game, state=args.state)
+    frame_format = '{game}_{state}_{{uuid}}.jpg'.format(game=args.game, state=args.state)
     saver = ObservationSaver(args.output_file, frame_format, args.image_directory)
 
     main(env, saver)
