@@ -191,7 +191,7 @@ if __name__ == '__main__':
     val_steps = len(val_paths) // args.batch_size
 
     vae, encoder, decoder = autoencoder((224, 320, 3))
-    models = {'vae': vae, 'encoder': encoder, decoder: decoder}
+    models = {'vae': vae, 'encoder': encoder, 'decoder': decoder}
     filepath = os.path.join(args.checkpoint_directory, '{model}.{epoch:02d}-{val_loss:.6f}.hdf5')
 
     vae.fit_generator(
