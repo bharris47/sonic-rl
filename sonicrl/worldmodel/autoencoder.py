@@ -173,6 +173,7 @@ if __name__ == '__main__':
     parser.add_argument('--samples')
     parser.add_argument('--image-directory')
     parser.add_argument('--train-environments')
+    parser.add_argument('--checkpoint-directory', default='checkpoints')
     parser.add_argument('--batch-size', type=int, default=32)
     args = parser.parse_args()
 
@@ -191,7 +192,7 @@ if __name__ == '__main__':
 
     vae, encoder, decoder = autoencoder((224, 320, 3))
     models = {'vae': vae, 'encoder': encoder, decoder: decoder}
-    filepath = '{model}.{epoch:02d}-{val_loss:.6f}.hdf5'
+    filepath = os.path.join(args.checkpoint_directory, '{model}.{epoch:02d}-{val_loss:.6f}.hdf5')
 
     vae.fit_generator(
         train_generator,
