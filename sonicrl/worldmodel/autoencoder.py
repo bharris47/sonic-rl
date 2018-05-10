@@ -92,7 +92,7 @@ def autoencoder(image_shape, filters=64, kernel_size=3, latent_dims=64, intermed
     x_decoded_mean_squash = decoder_mean_squash(x_decoded_relu)
 
     # instantiate VAE model
-    vae = Model(x, x_decoded_mean_squash)
+    vae = Model(x, x_decoded_mean_squash, name='vae')
 
     # Compute VAE loss
     xent_loss = height * width * metrics.binary_crossentropy(
@@ -105,7 +105,7 @@ def autoencoder(image_shape, filters=64, kernel_size=3, latent_dims=64, intermed
     vae.compile(optimizer='rmsprop')
     vae.summary()
 
-    encoder = Model(x, z)
+    encoder = Model(x, [z_mean, z_log_var, z], name='encoder')
 
     decoder_input = Input(shape=(latent_dims,))
     decoder_features = decoder_hid(decoder_input)
@@ -115,7 +115,7 @@ def autoencoder(image_shape, filters=64, kernel_size=3, latent_dims=64, intermed
     decoder_features = decoder_deconv_2(decoder_features)
     decoder_features = decoder_deconv_3_upsamp(decoder_features)
     decoded_image = decoder_mean_squash(decoder_features)
-    decoder = Model(decoder_input, decoded_image)
+    decoder = Model(decoder_input, decoded_image, name='decoder')
 
     return vae, encoder, decoder
 
