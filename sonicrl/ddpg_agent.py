@@ -9,7 +9,7 @@ from rl.memory import SequentialMemory
 from rl.policy import Model
 from rl.random import OrnsteinUhlenbeckProcess
 
-MAX_EPISODE_STEPS = 10000
+MAX_EPISODE_STEPS = 18000
 
 ENV_NAME = 'SonicTheHedgehog-Genesis'
 STATE_NAME = 'GreenHillZone.Act1'
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     memory = SequentialMemory(limit=MAX_EPISODE_STEPS, window_length=1)
     random_process = OrnsteinUhlenbeckProcess(size=n_actions, theta=.15, mu=0., sigma=.3)
     agent = DDPGAgent(nb_actions=n_actions, actor=actor, critic=critic, critic_action_input=action_input,
-                      memory=memory, nb_steps_warmup_critic=10000, nb_steps_warmup_actor=10000,
+                      memory=memory, nb_steps_warmup_critic=MAX_EPISODE_STEPS, nb_steps_warmup_actor=MAX_EPISODE_STEPS,
                       random_process=random_process, gamma=.99, target_model_update=1e-3, processor=RetroProcessor(),
                       train_interval=300)
     agent.compile(Adam(lr=.001, clipnorm=1.), metrics=['mae'])
