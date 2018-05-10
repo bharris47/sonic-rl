@@ -20,7 +20,7 @@ class MultiModelCheckpoint(Callback):
 
     def on_epoch_end(self, epoch, logs=None):
         for model_name, model in self._models.items():
-            filepath = self._filepath.format(epoch=epoch + 1, **logs)
+            filepath = self._filepath.format(model=model_name, epoch=epoch + 1, **logs)
             model.save(filepath, overwrite=True)
 
 
@@ -76,11 +76,11 @@ def autoencoder(image_shape, filters=64, kernel_size=3, latent_dims=64, intermed
     decoder_deconv_3_upsamp = Conv2DTranspose(filters,
                                               kernel_size=kernel_size,
                                               strides=(2, 2),
-                                              padding='valid',
+                                              padding='same',
                                               activation='relu')
     decoder_mean_squash = Conv2D(channels,
-                                 kernel_size=2,
-                                 padding='valid',
+                                 kernel_size=kernel_size,
+                                 padding='same',
                                  activation='sigmoid')
 
     hid_decoded = decoder_hid(z)
