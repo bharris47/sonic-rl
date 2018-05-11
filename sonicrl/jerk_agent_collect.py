@@ -5,6 +5,7 @@ A scripted agent called "Just Enough Retained Knowledge".
 """
 import argparse
 import json
+import multiprocessing
 import os
 import random
 from uuid import uuid4
@@ -13,7 +14,7 @@ import cv2
 import gym
 import numpy as np
 import retro
-
+from tqdm import trange
 from sonicrl.environments import get_environments
 
 EXPLOIT_BIAS = 0.25
@@ -44,12 +45,11 @@ class ObservationSaver:
         self._outfile.close()
 
 
-def main(environment_args, saver):
+def main(observation_queue, observations_per_env, environment_args):
     """Run JERK on the attached environment."""
     new_ep = True
     observation_buffer = []
-    environment_indices = list(range(len(environment_args)))
-    observations_per_env = {i: 0 for i in environment_indices}
+
     env = None
     while True:
         if new_ep:
@@ -70,10 +70,8 @@ def main(environment_args, saver):
 
         while len(observation_buffer[0]) == 4:
             obs, reward, done, action = observation_buffer.pop(0)
-            saver.save(episode_id, current_game, current_state, obs, action, reward, done)
+            observation_queue.put((episode_id, current_game, current_state, obs, reward, done, action))
             observations_per_env[env_idx] += 1
-            if saver.num_saved % 10000 == 0:
-                print('%d observations saved' % saver.num_saved)
 
 
 def move(env, num_steps, buffer, left=False, jump_prob=1.0 / 40.0, jump_repeat=4):
@@ -144,6 +142,19 @@ if __name__ == '__main__':
     for env_file in args.environments:
         environments.extend(get_environments(env_file))
 
+    manager = multiprocessing.Manager()
+    observations_per_env = manager.dict()
+    for i in range(len(environments)):
+        observations_per_env[i] = 0
+
+    observation_queue = multiprocessing.Queue(maxsize=30000)
+    for i in range(2):
+        worker = multiprocessing.Process(target=main, args=(observation_queue, observations_per_env, environments))
+        worker.daemon = True
+        worker.start()
+
     frame_format = '{game}_{state}_{uuid}.jpg'
     saver = ObservationSaver(args.output_file, frame_format, args.image_directory)
-    main(environments, saver)
+    for _ in trange(4500000):
+        episode_id, current_game, current_state, obs, reward, done, action = observation_queue.get()
+        saver.save(episode_id, current_game, current_state, obs, action, reward, done)
