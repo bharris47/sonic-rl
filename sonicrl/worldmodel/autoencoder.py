@@ -14,34 +14,35 @@ from sonicrl.environments import get_environments
 
 
 class MultiModelCheckpoint(Callback):
-    def __init__(self, models, filepath):
+    def __init__(self, models, filepath, steps=0, checkpoint_every=10000):
         self._models = models
         self._filepath = filepath
+        self._checkpoint_every = checkpoint_every
+        self._steps = steps
 
-    def on_epoch_end(self, epoch, logs=None):
-        for model_name, model in self._models.items():
-            filepath = self._filepath.format(model=model_name, epoch=epoch + 1, **logs)
-            model.save(filepath, overwrite=True)
+    def on_batch_end(self, batch, logs=None):
+        self._steps += 1
+        if self._steps and self._steps % self._checkpoint_every == 0:
+            for model_name, model in self._models.items():
+                filepath = self._filepath.format(model=model_name, step=self._steps, **logs)
+                model.save(filepath, overwrite=True)
 
 
 def autoencoder(image_shape, filters=64, kernel_size=3, latent_dims=64, intermediate_dims=128, epsilon_std=1.0):
     x = Input(shape=image_shape)
     height, width, channels = image_shape
-    conv_1 = Conv2D(channels,
+    conv_1 = Conv2D(filters,
                     kernel_size=kernel_size,
-                    padding='same', activation='relu')(x)
+                    padding='same', activation='relu',
+                    strides=(2, 2))(x)
     conv_2 = Conv2D(filters,
                     kernel_size=kernel_size,
-                    padding='same', activation='relu',
-                    strides=(2, 2))(conv_1)
-    conv_3 = Conv2D(filters,
-                    kernel_size=kernel_size,
-                    padding='same', activation='relu')(conv_2)
-    conv_4 = Conv2D(filters,
+                    padding='same', activation='relu')(conv_1)
+    conv_3 = Conv2D(filters * 2,
                     kernel_size=kernel_size,
                     padding='same', activation='relu',
-                    strides=(2, 2))(conv_3)
-    flat = Flatten()(conv_4)
+                    strides=(2, 2))(conv_2)
+    flat = Flatten()(conv_3)
     hidden = Dense(intermediate_dims, activation='relu')(flat)
 
     z_mean = Dense(latent_dims)(hidden)
@@ -66,7 +67,7 @@ def autoencoder(image_shape, filters=64, kernel_size=3, latent_dims=64, intermed
     decoder_upsample = Dense(filters * intermediate_height * intermediate_width, activation='relu')
 
     decoder_reshape = Reshape((intermediate_height, intermediate_width, filters))
-    decoder_deconv_1 = Conv2DTranspose(filters,
+    decoder_deconv_1 = Conv2DTranspose(filters * 2,
                                        kernel_size=kernel_size,
                                        padding='same',
                                        activation='relu')
@@ -185,8 +186,8 @@ if __name__ == '__main__':
     val_steps = len(val_paths) // args.batch_size
 
     vae, encoder, decoder = autoencoder((224, 320, 3))
-    models = {'vae': vae, 'encoder': encoder, 'decoder': decoder}
-    filepath = os.path.join(args.checkpoint_directory, '{model}.{epoch:02d}-{val_loss:.6f}.hdf5')
+    models = {'encoder': encoder, 'decoder': decoder}
+    filepath = os.path.join(args.checkpoint_directory, '{model}.{step}-{loss:.6f}.hdf5')
 
     vae.fit_generator(
         train_generator,
