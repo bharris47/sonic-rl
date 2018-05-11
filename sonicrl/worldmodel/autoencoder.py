@@ -57,6 +57,8 @@ def autoencoder(image_shape, filters=64, kernel_size=3, latent_dims=64, intermed
     # so you could write `Lambda(sampling)([z_mean, z_log_var])`
     z = Lambda(sampling, output_shape=(latent_dims,))([z_mean, z_log_var])
 
+    encoder = Model(x, [z_mean, z_log_var, z], name='encoder')
+
     # we instantiate these layers separately so as to reuse them later
     decoder_hid = Dense(intermediate_dims, activation='relu')
     intermediate_height = height // 4
@@ -83,30 +85,6 @@ def autoencoder(image_shape, filters=64, kernel_size=3, latent_dims=64, intermed
                                  padding='same',
                                  activation='sigmoid')
 
-    hid_decoded = decoder_hid(z)
-    up_decoded = decoder_upsample(hid_decoded)
-    reshape_decoded = decoder_reshape(up_decoded)
-    deconv_1_decoded = decoder_deconv_1(reshape_decoded)
-    deconv_2_decoded = decoder_deconv_2(deconv_1_decoded)
-    x_decoded_relu = decoder_deconv_3_upsamp(deconv_2_decoded)
-    x_decoded_mean_squash = decoder_mean_squash(x_decoded_relu)
-
-    # instantiate VAE model
-    vae = Model(x, x_decoded_mean_squash, name='vae')
-
-    # Compute VAE loss
-    xent_loss = height * width * metrics.binary_crossentropy(
-        K.flatten(x),
-        K.flatten(x_decoded_mean_squash))
-    kl_loss = - 0.5 * K.sum(1 + z_log_var - K.square(z_mean) - K.exp(z_log_var), axis=-1)
-    vae_loss = K.mean(xent_loss + kl_loss)
-    vae.add_loss(vae_loss)
-
-    vae.compile(optimizer='rmsprop')
-    vae.summary()
-
-    encoder = Model(x, [z_mean, z_log_var, z], name='encoder')
-
     decoder_input = Input(shape=(latent_dims,))
     decoder_features = decoder_hid(decoder_input)
     decoder_features = decoder_upsample(decoder_features)
@@ -116,6 +94,22 @@ def autoencoder(image_shape, filters=64, kernel_size=3, latent_dims=64, intermed
     decoder_features = decoder_deconv_3_upsamp(decoder_features)
     decoded_image = decoder_mean_squash(decoder_features)
     decoder = Model(decoder_input, decoded_image, name='decoder')
+
+    # instantiate VAE model
+    _, _, z_sampling = encoder(x)
+    vae_output = decoder(z_sampling)
+    vae = Model(x, vae_output, name='vae')
+
+    # Compute VAE loss
+    xent_loss = height * width * metrics.binary_crossentropy(
+        K.flatten(x),
+        K.flatten(vae_output))
+    kl_loss = - 0.5 * K.sum(1 + z_log_var - K.square(z_mean) - K.exp(z_log_var), axis=-1)
+    vae_loss = K.mean(xent_loss + kl_loss)
+    vae.add_loss(vae_loss)
+
+    vae.compile(optimizer='rmsprop')
+    vae.summary()
 
     return vae, encoder, decoder
 
