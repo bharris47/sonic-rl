@@ -179,7 +179,7 @@ if __name__ == '__main__':
     train_steps = 10000
 
     val_generator = image_generator(train_paths, batch_size=args.batch_size)
-    val_steps = len(val_paths) // args.batch_size
+    val_steps = 100
 
     vae, encoder, decoder = autoencoder((224, 320, 3))
     models = {'vae': vae, 'encoder': encoder, 'decoder': decoder}
