@@ -12,9 +12,9 @@ from uuid import uuid4
 import cv2
 import gym
 import numpy as np
+import retro
 
 from sonicrl.environments import get_environments
-from sonicrl.playlist_env import PlaylistEnv
 
 EXPLOIT_BIAS = 0.25
 TOTAL_TIMESTEPS = int(1e6)
@@ -28,12 +28,12 @@ class ObservationSaver:
         self._image_directory = image_directory
         self.num_saved = 0
 
-    def save(self, game, state, observation, action, reward, done):
+    def save(self, episode_id, game, state, observation, action, reward, done):
         uuid = uuid4().hex
         frame_name = self._frame_format.format(game=game, state=state, uuid=uuid)
         frame_path = os.path.join(args.image_directory, frame_name)
-        line = dict(game=game, state=state, image_id=frame_name, reward=reward,
-                    action=action.tolist(), done=done)
+        line = dict(episode_id=episode_id, game=game, state=state, image_id=frame_name,
+                    reward=reward, action=action.tolist(), done=done)
         self._outfile.write(json.dumps(line) + '\n')
 
         bgr = cv2.cvtColor(observation, cv2.COLOR_RGB2BGR)
@@ -44,13 +44,25 @@ class ObservationSaver:
         self._outfile.close()
 
 
-def main(env, saver):
+def main(environment_args, saver):
     """Run JERK on the attached environment."""
     new_ep = True
     observation_buffer = []
-    playlist_env = env.env
+    environment_indices = list(range(len(environment_args)))
+    observations_per_env = {i: 0 for i in environment_indices}
+    env = None
     while True:
         if new_ep:
+            if env is not None:
+                env.close()
+            episode_id = uuid4().hex
+            min_obs = min(observations_per_env.values())
+            env_idx = random.choice([i for i, count in observations_per_env.items() if count == min_obs])
+            args = environment_args[env_idx]
+            current_game = args['game']
+            current_state = args['state']
+            env = retro.make(**args)
+            env = gym.wrappers.TimeLimit(env, max_episode_steps=18000)
             _ = env.reset()
         reward, new_ep = move(env, 100, observation_buffer)
         if not new_ep and reward <= BACKTRACK_REWARD_THRESHOLD:
@@ -58,7 +70,8 @@ def main(env, saver):
 
         while len(observation_buffer[0]) == 4:
             obs, reward, done, action = observation_buffer.pop(0)
-            saver.save(playlist_env.current_game, playlist_env.current_state, obs, action, reward, done)
+            saver.save(episode_id, current_game, current_state, obs, action, reward, done)
+            observations_per_env[env_idx] += 1
             if saver.num_saved % 10000 == 0:
                 print('%d observations saved' % saver.num_saved)
 
@@ -130,9 +143,7 @@ if __name__ == '__main__':
     environments = []
     for env_file in args.environments:
         environments.extend(get_environments(env_file))
-    env = PlaylistEnv(environments)
-    env = gym.wrappers.TimeLimit(env, max_episode_steps=18000)
 
     frame_format = '{game}_{state}_{uuid}.jpg'
     saver = ObservationSaver(args.output_file, frame_format, args.image_directory)
-    main(env, saver)
+    main(environments, saver)
