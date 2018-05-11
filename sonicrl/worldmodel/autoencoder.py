@@ -176,7 +176,7 @@ if __name__ == '__main__':
     train_paths, val_paths = train_val_split(samples, train_environments, args.image_directory)
 
     train_generator = image_generator(train_paths, shuffle=True, batch_size=args.batch_size)
-    train_steps = len(train_paths) // args.batch_size
+    train_steps = 10000
 
     val_generator = image_generator(train_paths, batch_size=args.batch_size)
     val_steps = len(val_paths) // args.batch_size
