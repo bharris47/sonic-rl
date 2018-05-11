@@ -14,18 +14,14 @@ from sonicrl.environments import get_environments
 
 
 class MultiModelCheckpoint(Callback):
-    def __init__(self, models, filepath, steps=0, checkpoint_every=10000):
+    def __init__(self, models, filepath):
         self._models = models
         self._filepath = filepath
-        self._checkpoint_every = checkpoint_every
-        self._steps = steps
 
-    def on_batch_end(self, batch, logs=None):
-        self._steps += 1
-        if self._steps and self._steps % self._checkpoint_every == 0:
-            for model_name, model in self._models.items():
-                filepath = self._filepath.format(model=model_name, step=self._steps, **logs)
-                model.save(filepath, overwrite=True)
+    def on_epoch_end(self, epoch, logs=None):
+        for model_name, model in self._models.items():
+            filepath = self._filepath.format(model=model_name, epoch=epoch + 1, **logs)
+            model.save(filepath, overwrite=True)
 
 
 def autoencoder(image_shape, filters=64, kernel_size=3, latent_dims=64, intermediate_dims=128, epsilon_std=1.0):
@@ -186,8 +182,8 @@ if __name__ == '__main__':
     val_steps = len(val_paths) // args.batch_size
 
     vae, encoder, decoder = autoencoder((224, 320, 3))
-    models = {'encoder': encoder, 'decoder': decoder}
-    filepath = os.path.join(args.checkpoint_directory, '{model}.{step}-{loss:.6f}.hdf5')
+    models = {'vae': vae, 'encoder': encoder, 'decoder': decoder}
+    filepath = os.path.join(args.checkpoint_directory, '{model}.{epoch:02d}-{val_loss:.6f}.hdf5')
 
     vae.fit_generator(
         train_generator,
